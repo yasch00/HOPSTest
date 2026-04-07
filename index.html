@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOPS — 3D Plant View</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#87CEEB;overflow:hidden;font-family:'DM Mono',monospace}
+#c{display:block;width:100vw;height:100vh}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:13px 28px;background:rgba(8,16,32,0.82);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,0.09)}
+.logo{font-family:'Syne',sans-serif;font-size:16px;color:#f59e0b;letter-spacing:.05em}
+.hint{font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:.07em}
+.back-btn{font-family:'DM Mono',monospace;font-size:11px;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.6);cursor:pointer;text-decoration:none;transition:all .2s}
+.back-btn:hover{background:rgba(255,255,255,0.14);color:#fff}
+
+/* FLOATING LABELS */
+.flabel{position:fixed;pointer-events:all;z-index:50;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;transition:opacity .25s;cursor:pointer}
+.flabel-box{background:rgba(6,14,28,0.92);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:7px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.flabel-box:hover{border-color:rgba(255,255,255,0.4);background:rgba(10,22,44,0.96)}
+.flabel-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.flabel-name{font-size:12px;font-weight:500;color:#f1f5f9}
+.flabel-val{font-size:10px;color:#475569;margin-top:1px}
+.flabel-stem{width:1px;height:16px;background:linear-gradient(to bottom,rgba(255,255,255,0.3),transparent)}
+.flabel-tip{width:5px;height:5px;background:rgba(255,255,255,0.4);border-radius:50%}
+
+/* LEGEND — fixed panel bottom-left */
+#legend{
+  position:fixed;left:22px;bottom:22px;z-index:80;pointer-events:none;
+  background:rgba(6,14,28,0.90);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,0.12);border-radius:12px;
+  padding:16px 18px;min-width:190px;
+}
+.leg-title{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:#334155;margin-bottom:11px}
+.leg-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:11px;color:#94a3b8}
+.leg-row:last-child{margin-bottom:0}
+.leg-swatch{width:28px;height:5px;border-radius:3px;flex-shrink:0}
+.leg-divider{height:1px;background:rgba(255,255,255,0.06);margin:10px 0}
+.leg-click{font-size:10px;color:#475569;display:flex;align-items:center;gap:8px}
+.leg-icon{width:14px;height:14px;border:1px solid rgba(255,255,255,0.25);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;color:rgba(255,255,255,0.5)}
+
+/* CI BADGE */
+#ci-badge{position:fixed;left:22px;top:62px;background:rgba(6,14,28,0.88);backdrop-filter:blur(12px);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:13px 18px;pointer-events:none;z-index:80}
+.ci-lbl{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#f59e0b;margin-bottom:5px}
+.ci-val{font-size:24px;font-family:'Syne',sans-serif;color:#f1f5f9}
+.ci-unit{font-size:11px;color:#475569}
+.ci-cost{font-size:13px;color:#22c55e;margin-top:3px}
+
+/* PANEL */
+#panel{position:fixed;right:22px;top:62px;width:330px;max-height:calc(100vh - 80px);overflow-y:auto;background:rgba(6,14,28,0.95);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.13);border-radius:14px;padding:22px;transform:translateX(380px);transition:transform .35s cubic-bezier(.4,0,.2,1);z-index:200;scrollbar-width:thin;scrollbar-color:#1e3a5f transparent}
+#panel.open{transform:translateX(0)}
+.p-close{position:absolute;top:14px;right:14px;background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:20px;line-height:1}
+.p-close:hover{color:#fff}
+.p-head{display:flex;align-items:center;gap:13px;margin-bottom:12px}
+.p-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.p-title{font-family:'Syne',sans-serif;font-size:18px;color:#f1f5f9;font-weight:700;line-height:1.1}
+.p-sub{font-size:10px;color:#475569;letter-spacing:.07em;text-transform:uppercase;margin-top:3px}
+.p-divider{height:1px;background:rgba(255,255,255,0.07);margin:12px 0}
+.p-sec{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#334155;margin-bottom:8px;margin-top:14px}
+.p-rows{display:flex;flex-direction:column;gap:7px}
+.p-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.p-lbl{font-size:11px;color:#64748b}.p-v{font-size:12px;color:#e2e8f0}
+.p-v.a{color:#f59e0b}.p-v.t{color:#14b8a6}.p-v.g{color:#22c55e}.p-v.r{color:#f87171}
+.p-cst{background:rgba(255,255,255,0.04);border-left:2px solid #1e3a5f;border-radius:0 6px 6px 0;padding:7px 10px;margin-bottom:6px;font-size:10px;color:#94a3b8;line-height:1.6}
+.p-cst b{color:#cbd5e1;display:block;margin-bottom:2px;font-size:11px}
+.p-note{font-size:11px;color:#7a8fa8;line-height:1.7;margin-top:10px;padding:10px 12px;background:rgba(245,158,11,0.06);border-radius:8px;border-left:2px solid rgba(245,158,11,0.28)}
+
+/* TOOLTIP */
+#tip{position:fixed;pointer-events:none;z-index:300;background:rgba(6,14,28,0.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);border-radius:7px;padding:7px 12px;font-size:12px;color:#f1f5f9;display:none;transform:translate(-50%,-140%);white-space:nowrap}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<nav>
+  <div class="logo">HOPS · 3D Plant View</div>
+  <span class="hint">drag to orbit · scroll to zoom · click any unit to inspect</span>
+  <a class="back-btn" href="hops_v2.html">← Overview</a>
+</nav>
+
+<div id="ci-badge">
+  <div class="ci-lbl">Carbon intensity target</div>
+  <div class="ci-val">6.5 <span class="ci-unit">kg CO₂/kg H₂</span></div>
+  <div class="ci-cost">$186 / ton NH₃</div>
+</div>
+
+<!-- FIXED LEGEND -->
+<div id="legend">
+  <div class="leg-title">Material flows</div>
+  <div class="leg-row"><div class="leg-swatch" style="background:#f59e0b"></div>Electricity (wind → plant)</div>
+  <div class="leg-row"><div class="leg-swatch" style="background:#14b8a6"></div>Hydrogen (SMR / EL → HB)</div>
+  <div class="leg-row"><div class="leg-swatch" style="background:#22c55e"></div>Nitrogen (ASU → HB)</div>
+  <div class="leg-row"><div class="leg-swatch" style="background:#4ade80"></div>NH₃ product (HB → storage)</div>
+  <div class="leg-row"><div class="leg-swatch" style="background:#d1d5db"></div>Natural gas (feed → SMR)</div>
+  <div class="leg-row"><div class="leg-swatch" style="background:#f87171"></div>Process heat (HeatBat → SMR)</div>
+  <div class="leg-divider"></div>
+  <div class="leg-click"><div class="leg-icon">↗</div>Click any building or label</div>
+</div>
+
+<div id="panel">
+  <button class="p-close" onclick="closePanel()">×</button>
+  <div class="p-head">
+    <div id="p-icon" class="p-icon"></div>
+    <div><div id="p-title" class="p-title"></div><div id="p-sub" class="p-sub"></div></div>
+  </div>
+  <div class="p-divider"></div>
+  <div class="p-sec">Parameters · CI = 6.5</div>
+  <div class="p-rows" id="p-rows"></div>
+  <div class="p-sec">Model constraints</div>
+  <div id="p-csts"></div>
+  <div id="p-note" class="p-note"></div>
+</div>
+
+<div id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── SYSTEM DATA ──
+const SYSTEMS={
+  wind:{icon:'🌬',color:'#f59e0b',title:'Wind Turbines',sub:'Primary electricity · 873 MW installed',
+    rows:[['Installed capacity','873 MW','a'],['Capacity factor','~48%',''],['Annual output','3.99 TWh','a'],['CAPEX','$1.292M / MW',''],['OPEX','$29k / MW·yr',''],['Electricity price (LCOE)','$29.2 / MWh','a']],
+    csts:[{t:'V_E_WT[t] = CF_wind[t] × P_WT  ∀t',s:'Hourly output tracks the wind capacity factor series — no control variable, it just blows'},
+          {t:'P_WT ≤ 30,000 MW',s:'Upper bound on installed capacity'},
+          {t:'Σ V_E_GRID[t] ≤ 2 × Σ(on-site consumption)',s:'Grid export limited to twice net on-site use — surplus wind sells back'}],
+    note:'At CI=6.5 wind is the primary power source, running flat-out at 873 MW. Surplus electricity earns $129/ton NH₃ in grid export revenue — nearly covering all NG fuel costs.'},
+  smr:{icon:'🏭',color:'#9ca3af',title:'SMR Unit',sub:'Steam methane reforming · 347 t H₂/day',
+    rows:[['H₂ capacity','347 t H₂/day','a'],['NG feedstock','2.0 kg CH₄/kg H₂',''],['Process heat','13.9 kWh/kg H₂',''],['Electricity draw','0.15 kWh/kg H₂',''],['CAPEX','$350k / (t H₂/day)',''],['CO₂ from feedstock','0.202 tCO₂/MWh_ng','r'],['CO₂ from combustion','0.198 tCO₂/MWh_ng','r']],
+    csts:[{t:'V_H2_SMR[t] ≤ P_SMR / 24  ∀t',s:'Hourly H₂ output bounded by daily installed capacity'},
+          {t:'U_NG_feed[t] = 2.0 × 13.9 × V_H2_SMR[t]',s:'Feedstock NG strictly proportional to H₂ produced'},
+          {t:'U_NG_comb[t] × 13.9 + V_H_HB[t] = 13.9 × V_H2_SMR[t]',s:'Heat balance: combustion NG plus heat battery heat must exactly meet process demand'},
+          {t:'U_E_SMR[t] = 0.15 × V_H2_SMR[t]',s:'Electricity draw proportional to H₂ output — taken from electricity bus'}],
+    note:'Supplies ~99% of H₂ at CI=6.5. The heat battery can substitute for NG combustion heat, cutting CO₂ without reducing H₂ output.'},
+  haber:{icon:'⚗️',color:'#a78bfa',title:'Haber–Bosch Reactor',sub:'NH₃ synthesis · 3H₂ + N₂ → 2NH₃',
+    rows:[['Nameplate capacity','77.25 t NH₃/h','a'],['Annual output','500,000 t/yr','a'],['Single-pass conversion','95%',''],['Min turndown','10% of nameplate',''],['Max ramp down','−30% per hour',''],['Max ramp up','+300% per hour',''],['Fixed electricity load','60% of rated power','']],
+    csts:[{t:'Σ V_NH3[t] ≥ tNH3_day × (T/24)',s:'Total production over the 384-hour horizon must meet the annual target'},
+          {t:'V_NH3[t] ≥ 0.1 × P_NH3  (min turndown)',s:'Below 10% nameplate the catalyst cools and conversion collapses'},
+          {t:'V_NH3[t] ≥ 0.7 × V_NH3[t−1]  (ramp-down limit)',s:'Reactor temperature limits how fast you can reduce load'},
+          {t:'U_E_HB[t] = 0.6·E_max + 0.4·E_max·(V_NH3[t]/P_NH3)',s:'60% fixed base load + 40% variable with production rate'}],
+    note:'Runs nearly flat at 77 t/h. Ramp constraints reflect real catalyst physics — you cannot quickly start or stop an ammonia reactor without damaging the catalyst bed.'},
+  asu:{icon:'💨',color:'#22c55e',title:'Air Separation Unit',sub:'Cryogenic N₂ generation',
+    rows:[['Electricity demand','1.002 kWh/kg N₂',''],['N₂ per ton NH₃','0.823 kg N₂/kg NH₃',''],['CAPEX (scale law)','1.086 × flow^0.54 × $1M',''],['Storage','none — tracks HB live',''],['Operating mode','lock-step with HB','']],
+    csts:[{t:'U_E_ASU[t] = 1.002 × V_N2_ASU[t]  ∀t',s:'Electricity always proportional to N₂ produced — no part-load efficiency curve'},
+          {t:'V_N2_ASU[t] = U_N2_NH3[t]  ∀t',s:'N₂ output equals HB demand exactly every hour — no buffer storage'}],
+    note:'The ASU tracks the HB reactor in real time with no nitrogen storage. This simplifies the model but means any HB slowdown immediately reduces ASU load too.'},
+  el:{icon:'⚡',color:'#14b8a6',title:'Electrolyzer (PEM)',sub:'Green H₂ via electrolysis · near-idle at CI=6.5',
+    rows:[['Capacity (CI=6.5)','0.1 MW — near-idle',''],['Capacity (CI=0)','804 MW — dominates','a'],['Energy demand','51.1 kWh/kg H₂',''],['η_EL','1/51.1 = 0.0196 kg/kWh',''],['CAPEX','$1.46M / MW',''],['Installation factor','1.4×','']],
+    csts:[{t:'U_E_EL[t] ≤ P_EL  ∀t',s:'Electricity input bounded by installed capacity — no minimum load'},
+          {t:'V_H2_EL[t] = η_EL × U_E_EL[t]  ∀t',s:'H₂ output is linear in electricity — PEM electrolyzer can ramp freely'},
+          {t:'V_H2_EL[t] + V_H2_SMR[t] + V_H2_ST[t] − U_H2_CP[t] = U_H2_NH3[t]',s:'Hydrogen balance: all H₂ sources minus compression equals HB demand'}],
+    note:'Near-idle at CI=6.5 — the SMR dominates. Reduce the CI target and the optimizer shifts from SMR toward electrolyzer. At CI=0: 804 MW electrolyzer, SMR = 0.'},
+  storage:{icon:'🔵',color:'#60a5fa',title:'H₂ Compressor + Storage',sub:'High-pressure buffer between production & HB',
+    rows:[['Compressor cap. (CI=6.5)','0.01 MW',''],['Compression energy','2.5 kWh/kg H₂',''],['η_CP','0.40 kg H₂/kWh',''],['Tank capacity','0.2 tons',''],['CAPEX compressor','$5.7M / MW',''],['CAPEX storage','$750k / ton','']],
+    csts:[{t:'U_H2_CP[t] = η_CP × U_E_CP[t]  ∀t',s:'Compressed H₂ proportional to compressor electricity'},
+          {t:'S_H2[t] = S_H2[t−1] + U_H2_ST[t] − V_H2_ST[t]',s:'Tank level balance every hour'},
+          {t:'U_H2_ST[t] ≤ P_ST − S_H2_ST[t−1]',s:'Cannot fill more than remaining empty capacity'},
+          {t:'V_H2_ST[t] ≤ S_H2_ST[t]',s:'Cannot withdraw more than currently stored'}],
+    note:'Near-zero at CI=6.5 — steady SMR output bypasses storage and feeds HB directly. At CI=0 with a large electrolyzer, storage becomes a critical overnight buffer.'},
+  heatbat:{icon:'🔥',color:'#f87171',title:'Heat Battery',sub:'Thermal storage · surplus wind → SMR heat',
+    rows:[['Installed capacity','32.6 MW','a'],['Charge efficiency η','0.98',''],['Self-discharge λ','0.0001/hr',''],['Max storage duration','~6 hours',''],['Annual heat delivered','85,818 MWh','a'],['CAPEX','$75k / MW','']],
+    csts:[{t:'S_HB[t] = (1−λ)·S_HB[t−1] + η·U_E_HB[t] − V_H_HB[t]',s:'Thermal energy balance — same structure as the electrical battery'},
+          {t:'V_H_HB[t] ≤ S_E_HB[t]  (no overdischarge)',s:'Cannot deliver more heat than stored'},
+          {t:'V_H_HB[t] + U_NG_comb[t]×13.9 = 13.9×V_H2_SMR[t]',s:'Heat output directly substitutes for NG combustion in the SMR heat balance'}],
+    note:'Converts surplus wind electricity into process heat, then delivers it to the SMR combustion chamber. This replaces NG combustion, cutting CO₂ while maintaining H₂ output.'},
+  bess:{icon:'🔋',color:'#fbbf24',title:'Battery (BESS)',sub:'Short-term electrical buffer',
+    rows:[['Capacity (CI=6.5)','0.1 MW — near-idle',''],['Capacity (CI=0)','316 MW — key role','a'],['Round-trip efficiency','η_c × η_d = 0.860',''],['Self-discharge λ_B','0.002/24 per hour',''],['Rate limit τ','C/4 — 4-hour full charge',''],['CAPEX','$2.08M / MW','']],
+    csts:[{t:'S_B[t] = (1−λ_B)·S_B[t−1] + η_c·U_E_B[t] − V_E_B[t]/η_d',s:'State of charge updated every hour with self-discharge'},
+          {t:'U_E_B[t] ≤ P_B/τ_c  and  V_E_B[t] ≤ P_B/τ_d',s:'Charge and discharge rates capped at C/4'},
+          {t:'V_E_B[t] ≤ S_E_B[t]',s:'Cannot discharge more than currently stored'}],
+    note:'Idle at CI=6.5 — wind + SMR give stable power. At CI=0, 316 MW BESS smooths intermittent wind output to keep the large electrolyzer running overnight.'},
+};
+
+// ── THREE.JS SETUP ──
+const W=innerWidth, H=innerHeight;
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(W,H);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.12;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x7ab8d8);
+scene.fog=new THREE.FogExp2(0x9cc8de,0.008);
+
+const camera=new THREE.PerspectiveCamera(52,W/H,0.1,1200);
+camera.position.set(0,30,60);
+
+// ── LIGHTING ──
+scene.add(new THREE.AmbientLight(0xfff8e8,0.65));
+const sun=new THREE.DirectionalLight(0xfffaea,1.6);
+sun.position.set(60,90,40);
+sun.castShadow=true;
+sun.shadow.mapSize.set(4096,4096);
+sun.shadow.camera.left=-100; sun.shadow.camera.right=100;
+sun.shadow.camera.top=100;  sun.shadow.camera.bottom=-100;
+sun.shadow.camera.far=350;  sun.shadow.bias=-0.0005;
+scene.add(sun);
+scene.add(new THREE.DirectionalLight(0xb8d8f0,0.4).position.set(-40,25,-15)||scene.children[scene.children.length-1]);
+scene.add(new THREE.HemisphereLight(0x7ab8d8,0x4a6a2a,0.5));
+
+// ── MATERIAL PALETTE ──
+const M={
+  ground:  mat(0x4e6830),
+  pad:     mat(0x8a8278),
+  road:    mat(0x585850),
+  conc:    mat(0xa09888),
+  concD:   mat(0x887868),
+  steel:   mat(0xb8c0c8),
+  steelD:  mat(0x7888a0),
+  white:   mat(0xf0f0e8),
+  glass:   mat(0x88c8e0,0.5),
+  red:     mat(0xc83828),
+  yellow:  mat(0xd4a020),
+  blue:    mat(0x3868a8),
+  green:   mat(0x388848),
+  teal:    mat(0x289898),
+  orange:  mat(0xd07020),
+  purple:  mat(0x6850c8),
+};
+function mat(c,op){
+  const m=new THREE.MeshLambertMaterial({color:c});
+  if(op!==undefined){m.transparent=true;m.opacity=op;}
+  return m;
+}
+
+// ── GEOMETRY HELPERS ──
+function mesh(geo,m,x,y,z,rx=0,ry=0,rz=0){
+  const o=new THREE.Mesh(geo,m);
+  o.position.set(x,y,z); o.rotation.set(rx,ry,rz);
+  o.castShadow=true; o.receiveShadow=true;
+  scene.add(o); return o;
+}
+// box with y at bottom face
+function bx(w,h,d,m,x,y,z,ry=0){ return mesh(new THREE.BoxGeometry(w,h,d),m,x,y+h/2,z,0,ry); }
+// cylinder with y at base
+function cy(rt,rb,h,m,x,y,z,s=16){ return mesh(new THREE.CylinderGeometry(rt,rb,h,s),m,x,y+h/2,z); }
+function sp(r,m,x,y,z){ return mesh(new THREE.SphereGeometry(r,20,14),m,x,y,z); }
+
+// ── GROUND & INFRASTRUCTURE ──
+mesh(new THREE.PlaneGeometry(600,600),M.ground,0,0,0,-Math.PI/2);
+mesh(new THREE.PlaneGeometry(110,85),M.pad,0,0.01,0,-Math.PI/2);
+[[0,40,6,16],[65,0,16,6],[-65,0,16,6]].forEach(([x,z,w,l])=>
+  mesh(new THREE.PlaneGeometry(w,l),M.road,x,0.02,z,-Math.PI/2));
+// fence
+for(let i=-52;i<=52;i+=4) cy(0.07,0.07,1.8,M.steelD,i,0,33);
+for(let i=-52;i<=52;i+=4) cy(0.07,0.07,1.8,M.steelD,i,0,-41);
+for(let i=-40;i<=40;i+=4) cy(0.07,0.07,1.8,M.steelD,-52,0,i);
+for(let i=-40;i<=40;i+=4) cy(0.07,0.07,1.8,M.steelD,52,0,i);
+
+// ── CLICKABLE HIT MESHES ──
+const clickables=[];
+function hit(w,h,d,x,y,z,key,lbl){
+  const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({transparent:true,opacity:0}));
+  o.position.set(x,y+h/2,z); scene.add(o);
+  clickables.push({mesh:o,key,lbl});
+}
+
+// ══════════════════════════════════════════
+// BUILDINGS — positions cross-referenced against flow routes
+// ══════════════════════════════════════════
+
+// ── SMR COMPLEX  (centre: 0, 0, -10) ──
+bx(13,17,11,M.concD,0,0,-10);
+bx(12.6,16.6,10.6,M.conc,0,0.05,-10);
+for(let i=-4.5;i<=4.5;i+=2.5){ bx(1.3,2,0.15,M.glass,i,6,-4.55); bx(1.3,2,0.15,M.glass,i,11,-4.55); }
+bx(13.2,0.6,11.2,M.red,0,17,-10); bx(13.2,0.6,11.2,M.red,0,9,-10);
+[4,-4].forEach(ox=>{ cy(0.9,1.1,24,M.concD,ox,0,-7); cy(1.15,1.15,0.5,M.red,ox,24,-7); for(let ry=0;ry<24;ry+=1.2) bx(0.08,0.1,0.9,M.yellow,ox+1.05,ry,-7); });
+bx(5,8,4,M.steelD,-9,0,-11); cy(0.4,0.4,10,M.steelD,-9,0,-11);  // HX unit
+bx(18,0.45,0.45,M.steelD,0,6,-5);  // pipe manifold
+hit(17,24,15,0,0,-10,'smr','SMR Unit');
+
+// ── HABER–BOSCH  (centre: 0, 0, 9) ──
+bx(15,13,17,M.blue,0,0,9);
+bx(14.6,12.6,16.6,M.steelD,0,0.05,9);
+const dG=new THREE.SphereGeometry(5.2,24,12,0,Math.PI*2,0,Math.PI/2);
+mesh(dG,M.blue,0,13.1,9);
+[5.5,-5.5].forEach(ox=>{ cy(1.5,1.7,15,M.steelD,ox,0,9); cy(1.6,1.6,0.5,M.blue,ox,15,9); bx(0.2,15,0.2,M.yellow,ox+1.7,0,9); });
+for(let i=-5;i<=5;i+=2.5) bx(1.4,1.8,0.15,M.glass,i,5,0.55);
+hit(20,18,22,0,0,9,'haber','Haber–Bosch Reactor');
+
+// ── ASU  (centre: -19, 0, 1) ──
+bx(9,11,8,M.green,-19,0,1);
+bx(8.6,10.6,7.6,M.steelD,-19,0.05,1);
+[-15.5,-21].forEach(cx=>{ cy(0.9,1.1,13,M.steelD,cx,0,1); cy(1.0,1.0,0.4,M.green,cx,13,1); });
+for(let i=2;i<=9;i+=3.5) bx(1.2,1.6,0.15,M.glass,-19,i,-3.42);
+hit(13,15,12,-19,0,1,'asu','Air Separation Unit');
+
+// ── ELECTROLYZER  (centre: -19, 0, -13) ──
+bx(8,7,8,M.teal,-19,0,-13);
+bx(7.6,6.6,7.6,M.steelD,-19,0.05,-13);
+for(let i=0;i<5;i++) bx(6.5,0.8,6,i%2?M.teal:M.steelD,-19,0.8+i*1.2,-13);
+cy(0.32,0.32,9,M.teal,-15.4,0,-13);  // H2 out pipe up
+bx(2.2,1.5,0.15,M.glass,-19,4,-9.05);
+hit(13,10,13,-19,0,-13,'el','Electrolyzer');
+
+// ── H2 STORAGE TANKS  (centre: ~22, 0, 1) ──
+[16,22,28].forEach(tx=>{
+  cy(2.3,2.3,0.6,M.pad,tx,0,1,20);
+  sp(2.3,M.white,tx,3,1);
+  mesh(new THREE.TorusGeometry(2.3,0.13,8,24),M.red,tx,3,1,Math.PI/2);
+  for(let a=0;a<4;a++){ const ag=a/4*Math.PI*2; cy(0.13,0.13,2.8,M.steelD,tx+Math.cos(ag)*1.9,0,1+Math.sin(ag)*1.9); }
+});
+// H2 compressor building
+bx(5,5,5,M.steelD,16,0,8); cy(0.28,0.28,6,M.steelD,16,0,8);
+hit(24,8,12,22,0,1,'storage','H₂ Storage + Compressor');
+
+// ── HEAT BATTERY  (centre: -19, 0, 14) ──
+bx(8,9,8,M.red,-19,0,14);
+bx(7.6,8.6,7.6,mat(0x7a2018),-19,0.05,14);
+for(let i=-3;i<=3;i+=1.3) bx(0.25,1.1,7.5,M.red,-19+i,9.5,14); // fins
+bx(8.3,0.5,8.3,M.yellow,-19,1,14); bx(8.3,0.5,8.3,M.yellow,-19,4.5,14); // warning stripes
+hit(12,13,12,-19,0,14,'heatbat','Heat Battery');
+
+// ── BESS CONTAINERS  (centre: 20, 0, -11) ──
+[-7,-10,-13].forEach((z,i)=>{ bx(6,3,2.5,i%2?M.blue:M.steelD,20,0,z); for(let j=0;j<4;j++) bx(0.09,0.85,2.2,M.steelD,17.1,0.8+j*0.55,z); });
+bx(0.12,1.6,5,M.yellow,23.1,2.5,-10);
+hit(10,6,12,20,0,-10,'bess','Battery (BESS)');
+
+// ── NH3 PRODUCT SPHERES  (centre: ~-24, 0, 16) ──
+[-28,-20].forEach(sx=>{
+  cy(3.2,3.2,0.8,M.pad,sx,0,16,24);
+  sp(3.4,M.white,sx,5,16);
+  mesh(new THREE.TorusGeometry(3.4,0.16,8,24),M.blue,sx,5,16,Math.PI/2);
+  for(let a=0;a<5;a++){ const ag=a/5*Math.PI*2; cy(0.16,0.16,4.5,M.steelD,sx+Math.cos(ag)*2.6,0,16+Math.sin(ag)*2.6); }
+});
+
+// ── CONTROL ROOM  (centre: 0, 0, 30) ──
+bx(8,5,7,mat(0xd8d0c0),0,0,30);
+bx(7.8,0.4,6.8,mat(0xc0b8a8),0,5,30);
+[-2,2].forEach(ox=>bx(2.4,2.6,0.2,M.glass,ox,2.8,26.55));
+bx(5.5,0.3,0.3,M.steelD,0,5.2,26.55);
+cy(0.07,0.07,5,M.steelD,4,5,29); bx(1.8,0.07,0.07,M.steelD,4,10,29);
+
+// ── WIND TURBINES ──
+const blades=[];
+[[-55,-25],[-45,-30],[-65,-20],[-55,-36],[-70,-28],[-46,-20],
+ [-61,-15],[-51,-10],[-71,-12],[-43,-35],[-69,-38],[-59,-8],
+ [-41,-18],[-75,-22],[-53,-41],[-47,-7],[-67,-32]].forEach(([x,z])=>{
+  const h=14+Math.random()*5;
+  cy(0.2,0.5,h,M.white,x,0,z,32);
+  bx(1.5,0.9,0.8,M.steelD,x,h+0.45,z);
+  sp(0.4,M.steel,x,h+0.9,z-0.4);
+  const bg=new THREE.Group();
+  bg.position.set(x,h+0.9,z-0.45);
+  bg.rotation.z=Math.random()*Math.PI*2;
+  for(let b=0;b<3;b++){
+    const sh=new THREE.Shape();
+    sh.moveTo(0,-0.1); sh.lineTo(0.15,0.1); sh.lineTo(0.07,5.5); sh.lineTo(-0.07,5.5); sh.lineTo(-0.06,0); sh.lineTo(0,-0.1);
+    const blade=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:0.05,bevelEnabled:false}),new THREE.MeshLambertMaterial({color:0xecf0f1}));
+    blade.rotation.z=(b/3)*Math.PI*2; blade.castShadow=true;
+    bg.add(blade);
+  }
+  scene.add(bg);
+  blades.push({group:bg,speed:0.010+Math.random()*0.008});
+  const wh=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,h+5,8),new THREE.MeshBasicMaterial({transparent:true,opacity:0}));
+  wh.position.set(x,(h+5)/2,z); scene.add(wh);
+  clickables.push({mesh:wh,key:'wind',lbl:'Wind Turbine'});
+});
+
+// ══════════════════════════════════════════
+// CORRECT FLOW ROUTES — elevated pipe-height = 7–9 m to clear buildings
+// All endpoints verified against building centre coords above
+//
+// Wind farm centroid ≈ (-57, 0, -24)
+// SMR centre:       (  0, 0, -10)  — pipe connection height ~7
+// HB centre:        (  0, 0,   9)  — pipe connection height ~7
+// ASU centre:       (-19, 0,   1)  — pipe connection height ~7
+// EL centre:        (-19, 0, -13)  — pipe connection height ~7
+// H2 storage:       ( 22, 0,   1)  — pipe connection height ~5
+// H2 compressor:    ( 16, 0,   8)  — pipe connection height ~5
+// Heat Battery:     (-19, 0,  14)  — pipe connection height ~7
+// BESS:             ( 20, 0, -10)  — pipe connection height ~4
+// NH3 storage:      (-24, 0,  16)  — pipe connection height ~7
+// ══════════════════════════════════════════
+
+const ELEC=0xf5a800;   // amber electricity
+const H2  =0x0eb8a6;   // teal hydrogen
+const N2  =0x22c55e;   // green nitrogen
+const NH3C=0x4ade80;   // bright green NH3 product
+const NG  =0xc8ccd4;   // light gray natural gas
+const HEAT=0xf87171;   // red heat
+const ELEC2=0xfbbf24;  // yellow electricity variant
+
+const flowDefs=[
+  // ── ELECTRICITY FLOWS (amber) ──
+  {// Wind farm → SMR electricity (elevated over terrain, arrives at SMR front)
+   pts:[[-57,8,-24],[-35,8,-20],[-14,8,-14],[0,8,-14],[0,8,-10]],
+   col:ELEC, r:0.42, spd:0.009, n:24, lbl:'Electricity  Wind → SMR'},
+
+  {// Wind farm → HB electricity (separate route, arrives at HB west side)
+   pts:[[-57,8,-24],[-30,9,-10],[-12,9,0],[0,9,0],[0,9,9]],
+   col:ELEC2, r:0.42, spd:0.010, n:24, lbl:'Electricity  Wind → HB loop'},
+
+  {// Wind farm → Electrolyzer electricity
+   pts:[[-57,8,-24],[-38,8,-16],[-19,8,-16],[-19,8,-13]],
+   col:ELEC, r:0.34, spd:0.007, n:14, lbl:'Electricity  Wind → Electrolyzer'},
+
+  {// Wind farm → Heat Battery electricity (charges thermal store)
+   pts:[[-57,8,-24],[-40,8,0],[-24,8,10],[-19,8,14]],
+   col:ELEC2, r:0.34, spd:0.007, n:14, lbl:'Electricity  Wind → Heat Battery'},
+
+  {// Wind farm → BESS electricity
+   pts:[[-57,8,-24],[-20,8,-18],[20,8,-14],[20,7,-10]],
+   col:ELEC, r:0.28, spd:0.005, n:10, lbl:'Electricity  Wind → BESS'},
+
+  // ── HYDROGEN FLOWS (teal) ──
+  {// SMR → HB hydrogen (main H2 pipeline, teal, runs at height 8)
+   pts:[[0,8,-4],[0,8,0],[0,8,9]],
+   col:H2, r:0.50, spd:0.014, n:28, lbl:'H₂  SMR → Haber–Bosch'},
+
+  {// Electrolyzer → Compressor → H2 Storage → HB
+   // EL at (-19,-13) → compressor at (16,8) → storage at (22,1) → HB at (0,9)
+   pts:[[-19,7,-13],[-10,7,-8],[0,7,-4],[0,7,9]],
+   col:0x2dd4bf, r:0.28, spd:0.009, n:12, lbl:'H₂  Electrolyzer → HB'},
+
+  // ── NITROGEN FLOW (green) ──
+  {// ASU → HB nitrogen pipeline
+   pts:[[-19,7,1],[-12,7,5],[0,7,9]],
+   col:N2, r:0.44, spd:0.011, n:20, lbl:'N₂  ASU → Haber–Bosch'},
+
+  // ── NH3 PRODUCT FLOW (bright green) ──
+  {// HB → NH3 storage spheres
+   pts:[[0,7,16],[0,7,20],[-10,7,20],[-20,7,18]],
+   col:NH3C, r:0.46, spd:0.010, n:20, lbl:'NH₃  HB → Product storage'},
+
+  // ── NATURAL GAS (gray) ──
+  {// External NG supply → SMR (comes in from east, off-plant)
+   pts:[[55,2,-18],[35,2,-18],[12,2,-14],[0,2,-14],[0,3,-10]],
+   col:NG, r:0.36, spd:0.005, n:16, lbl:'Natural gas  Feed → SMR'},
+
+  // ── HEAT FLOW (red) ──
+  {// Heat Battery → SMR process heat (elevated, clearly separate from elec routes)
+   pts:[[-19,9,14],[-12,9,8],[-6,9,0],[0,9,-5],[0,9,-10]],
+   col:HEAT, r:0.38, spd:0.009, n:18, lbl:'Heat  Heat Battery → SMR'},
+];
+
+// Build pipe tubes (translucent coloured pipe visual)
+flowDefs.forEach(fd=>{
+  const cv=new THREE.CatmullRomCurve3(fd.pts.map(p=>new THREE.Vector3(...p)));
+  const g=new THREE.TubeGeometry(cv,60,fd.r*0.52,8,false);
+  const mo=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:fd.col,transparent:true,opacity:0.35}));
+  scene.add(mo);
+});
+
+// Animated glow particles — large, bright, fast-enough to see direction
+const allParticles=[];
+flowDefs.forEach(fd=>{
+  const cv=new THREE.CatmullRomCurve3(fd.pts.map(p=>new THREE.Vector3(...p)));
+  const parts=[];
+  for(let i=0;i<fd.n;i++){
+    const g=new THREE.SphereGeometry(fd.r*1.4,8,6);
+    const mo=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:fd.col,transparent:true,opacity:0.95}));
+    mo.position.copy(cv.getPoint(i/fd.n));
+    scene.add(mo);
+    parts.push({mo,t:i/fd.n,spd:fd.spd*(0.82+Math.random()*0.36)});
+  }
+  allParticles.push({parts,cv});
+});
+
+// ── FLOATING BUILDING LABELS ──
+const labelDefs=[
+  {key:'smr',    name:'SMR',          val:'347 t H₂/day', col:'#9ca3af', pos:new THREE.Vector3( 0,26,-10)},
+  {key:'haber',  name:'Haber–Bosch',  val:'77 t NH₃/h',   col:'#a78bfa', pos:new THREE.Vector3( 0,22, 9)},
+  {key:'asu',    name:'ASU',          val:'N₂ generator',  col:'#22c55e', pos:new THREE.Vector3(-19,18, 1)},
+  {key:'el',     name:'Electrolyzer', val:'0.1 MW',        col:'#14b8a6', pos:new THREE.Vector3(-19,15,-13)},
+  {key:'storage',name:'H₂ Storage',  val:'3 tanks · 0.2t',col:'#60a5fa', pos:new THREE.Vector3(22,12, 1)},
+  {key:'heatbat',name:'Heat Battery', val:'32.6 MW',       col:'#f87171', pos:new THREE.Vector3(-19,17,14)},
+  {key:'bess',   name:'BESS',         val:'0.1 MW',        col:'#fbbf24', pos:new THREE.Vector3(20,12,-10)},
+  {key:'wind',   name:'Wind Farm',    val:'873 MW · 17 WTs',col:'#f59e0b',pos:new THREE.Vector3(-57,10,-24)},
+];
+
+const domLabels=labelDefs.map(ld=>{
+  const el=document.createElement('div');
+  el.className='flabel';
+  el.innerHTML=`<div class="flabel-box"><div class="flabel-dot" style="background:${ld.col}"></div><div><div class="flabel-name">${ld.name}</div><div class="flabel-val">${ld.val}</div></div></div><div class="flabel-stem"></div><div class="flabel-tip"></div>`;
+  el.addEventListener('click',()=>openPanel(ld.key));
+  document.body.appendChild(el);
+  return {el,pos:ld.pos};
+});
+
+// ── ORBIT CONTROLS ──
+let isDrag=false,lastX=0,lastY=0,theta=0.18,phi=0.66,radius=68;
+const camTarget=new THREE.Vector3(0,4,0);
+
+function updateCam(){
+  camera.position.set(
+    camTarget.x+radius*Math.sin(phi)*Math.sin(theta),
+    camTarget.y+radius*Math.cos(phi),
+    camTarget.z+radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(camTarget);
+  // Project label world positions to screen
+  domLabels.forEach(dl=>{
+    const v=dl.pos.clone().project(camera);
+    if(v.z>=1){dl.el.style.opacity='0';return;}
+    dl.el.style.opacity='1';
+    dl.el.style.left=(( v.x*0.5+0.5)*innerWidth)+'px';
+    dl.el.style.top=((-v.y*0.5+0.5)*innerHeight)+'px';
+  });
+}
+updateCam();
+
+document.addEventListener('mousedown',e=>{isDrag=true;lastX=e.clientX;lastY=e.clientY});
+document.addEventListener('mouseup',()=>isDrag=false);
+document.addEventListener('mousemove',e=>{
+  if(isDrag){
+    theta-=(e.clientX-lastX)*0.006;
+    phi=Math.max(0.12,Math.min(1.38,phi+(e.clientY-lastY)*0.006));
+    lastX=e.clientX; lastY=e.clientY;
+  }
+  // Tooltip
+  mouse.x=(e.clientX/innerWidth)*2-1;
+  mouse.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const hits=raycaster.intersectObjects(clickables.map(c=>c.mesh));
+  if(hits.length){
+    const obj=clickables.find(c=>c.mesh===hits[0].object);
+    tip.style.display='block'; tip.style.left=e.clientX+'px'; tip.style.top=e.clientY+'px';
+    tip.textContent='Click · '+obj.lbl; document.body.style.cursor='pointer';
+  } else { tip.style.display='none'; document.body.style.cursor='default'; }
+});
+document.addEventListener('wheel',e=>{radius=Math.max(15,Math.min(140,radius+e.deltaY*0.09));},{passive:true});
+let lTouch=null;
+document.addEventListener('touchstart',e=>{lTouch=e.touches[0]},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(!lTouch)return;
+  const t=e.touches[0];
+  theta-=(t.clientX-lTouch.clientX)*0.007;
+  phi=Math.max(0.12,Math.min(1.38,phi+(t.clientY-lTouch.clientY)*0.007));
+  lTouch=t;
+},{passive:true});
+
+// ── RAYCASTER ──
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+const tip=document.getElementById('tip');
+
+document.addEventListener('click',e=>{
+  mouse.x=(e.clientX/innerWidth)*2-1;
+  mouse.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const hits=raycaster.intersectObjects(clickables.map(c=>c.mesh));
+  if(hits.length){
+    const obj=clickables.find(c=>c.mesh===hits[0].object);
+    if(obj&&SYSTEMS[obj.key]) openPanel(obj.key);
+  }
+});
+
+function openPanel(key){
+  const s=SYSTEMS[key]; if(!s)return;
+  document.getElementById('p-icon').textContent=s.icon;
+  document.getElementById('p-icon').style.cssText=`background:${s.color}18;border:1px solid ${s.color}55;width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0`;
+  document.getElementById('p-title').textContent=s.title;
+  document.getElementById('p-sub').textContent=s.sub;
+  document.getElementById('p-rows').innerHTML=s.rows.map(([l,v,c])=>`<div class="p-row"><span class="p-lbl">${l}</span><span class="p-v ${c||''}">${v}</span></div>`).join('');
+  document.getElementById('p-csts').innerHTML=s.csts.map(c=>`<div class="p-cst"><b>${c.t}</b>${c.s}</div>`).join('');
+  document.getElementById('p-note').textContent=s.note;
+  document.getElementById('panel').classList.add('open');
+}
+function closePanel(){document.getElementById('panel').classList.remove('open');}
+
+// ── CLOUDS ──
+const clouds=[];
+function mkCloud(x,y,z){
+  const g=new THREE.Group();
+  [[0,0,0],[2.2,0.6,0],[-2.2,0.6,0],[1,1.3,0],[-1,1.3,0],[0,1.8,0],[3,0,0],[-3,0,0]].forEach(([px,py,pz])=>{
+    const mo=new THREE.Mesh(new THREE.SphereGeometry(2+Math.random()*1.4,8,6),new THREE.MeshLambertMaterial({color:0xfafafa,transparent:true,opacity:0.8}));
+    mo.position.set(px,py,pz); g.add(mo);
+  });
+  g.position.set(x,y,z); g.scale.set(2.8+Math.random()*1.8,0.85,1.6+Math.random());
+  scene.add(g); return g;
+}
+[[-32,36,-95],[22,42,-105],[-72,30,-82],[52,40,-98],[-12,44,-115],[72,34,-88],[4,36,-94],[-52,40,-108],[-20,33,-80],[40,38,-102]].forEach(([x,y,z])=>clouds.push({g:mkCloud(x,y,z),s:0.02+Math.random()*0.025}));
+
+// ── ANIMATE ──
+function animate(){
+  requestAnimationFrame(animate);
+  blades.forEach(b=>b.group.rotation.z+=b.speed);
+  allParticles.forEach(({parts,cv})=>{
+    parts.forEach(p=>{
+      p.t=(p.t+p.spd)%1;
+      p.mo.position.copy(cv.getPoint(p.t));
+      p.mo.material.opacity=0.7+0.28*Math.sin(p.t*Math.PI*5+Date.now()*0.002);
+    });
+  });
+  clouds.forEach(c=>{c.g.position.x+=c.s; if(c.g.position.x>130)c.g.position.x=-130;});
+  updateCam();
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
